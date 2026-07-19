@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package constellation;
+
+option go_package = "github.com/constellation/proto";
+
+import "common.proto";
+
+// ─── Cluster Management Service ─────────────────────────────────────────────
+// Internal gRPC used between agents and the controller for cluster operations.
+
+service ClusterService {
+  // Node registration
+  rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse);
+  rpc DeregisterNode(DeregisterNodeRequest) returns (DeregisterNodeResponse);
+  rpc UpdateNodeInfo(UpdateNodeInfoRequest) returns (Empty);
+
+  // Cluster info
+  rpc GetClusterInfo(Empty) returns (ClusterInfo);
+  rpc GetComputationPool(Empty) returns (ComputationPool);
+
+  // Heartbeat stream (agent → controller)
+  rpc HeartbeatStream(stream HeartbeatRequest) returns (stream HeartbeatResponse);
+}
+
+// ─── Registration ────────────────────────────────────────────────────────────
+
+message RegisterNodeRequest {
+  string hostname = 1;
+  string ip_address = 2;
+  string mac_address = 3;
+  int32 agent_port = 4;
+  string join_token = 5;
+  FullNodeInfoSnapshot node_info = 6;
+}
+
+message FullNodeInfoSnapshot {
+  CpuInfo cpu = 1;
+  MemoryInfo memory = 2;
+  repeated DiskInfo disks = 3;
+  repeated NetworkInfo networks = 4;
+  OsInfo os = 5;
+}
+
+message RegisterNodeResponse {
+  bool success = 1;
+  string node_id = 2;
+  string cluster_id = 3;
+  string cluster_name = 4;
+  string error = 5;
+}
+
+message DeregisterNodeRequest {
+  string node_id = 1;
+  string reason = 2;
+}
+
+message DeregisterNodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateNodeInfoRequest {
+  string node_id = 1;
+  string ip_address = 2;
+  FullNodeInfoSnapshot node_info = 3;
+}
+
+// ─── Cluster Info ────────────────────────────────────────────────────────────
+
+message ClusterInfo {
+  string cluster_id = 1;
+  string cluster_name = 2;
+  string controller_host = 3;
+  int32 controller_port = 4;
+  int32 total_nodes = 5;
+  int32 online_nodes = 6;
+  int32 active_tasks = 7;
+  int64 created_at = 8;
+  string status = 9; // healthy, degraded, critical
+}
+
+message ComputationPool {
+  uint32 total_cpu_cores = 1;
+  uint32 available_cpu_cores = 2;
+  uint64 total_memory_bytes = 3;
+  uint64 available_memory_bytes = 4;
+  uint64 total_disk_bytes = 5;
+  uint64 available_disk_bytes = 6;
+  int32 total_nodes = 7;
+  int32 online_nodes = 8;
+  repeated NodePoolEntry nodes = 9;
+}
+
+message NodePoolEntry {
+  string node_id = 1;
+  string hostname = 2;
+  NodeStatus status = 3;
+  uint32 cpu_cores = 4;
+  uint32 available_cpu_cores = 5;
+  uint64 total_memory_bytes = 6;
+  uint64 available_memory_bytes = 7;
+  uint64 total_disk_bytes = 8;
+  uint64 available_disk_bytes = 9;
+  uint32 running_tasks = 10;
+  double cpu_usage_percent = 11;
+  double memory_usage_percent = 12;
+}

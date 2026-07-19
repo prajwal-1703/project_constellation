@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package constellation;
+
+option go_package = "github.com/constellation/proto";
+
+import "common.proto";
+
+// ─── Scheduler Service ──────────────────────────────────────────────────────
+// Internal scheduler APIs (used by the controller's API layer).
+
+service SchedulerService {
+  rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
+  rpc GetTaskStatus(TaskID) returns (TaskInfo);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc CancelTask(TaskID) returns (CancelTaskResponse);
+  rpc RetryTask(TaskID) returns (RetryTaskResponse);
+  rpc StreamTaskLogs(TaskID) returns (stream TaskProgress);
+}
+
+// ─── Messages ────────────────────────────────────────────────────────────────
+
+message SubmitTaskRequest {
+  string name = 1;
+  string command = 2;
+  ResourceRequirements resources = 3;
+  Priority priority = 4;
+  int32 retry_max = 5;
+  int32 timeout_seconds = 6;
+  map<string, string> env_vars = 7;
+  string working_dir = 8;
+  string submitted_by = 9;
+
+  // Split task fields
+  SplitStrategy split_strategy = 10;
+  string input_file = 11;
+  string split_by = 12;       // "lines", "files", "size"
+  int32 chunk_size = 13;
+  string reduce_command = 14;
+  int32 max_nodes = 15;        // 0 = all available
+
+  // Docker fields
+  Runtime runtime = 16;
+  string docker_image = 17;
+
+  // Node pinning
+  string target_node = 18;     // empty = let scheduler decide
+}
+
+message SubmitTaskResponse {
+  bool success = 1;
+  string task_id = 2;
+  string error = 3;
+}
+
+message ListTasksRequest {
+  TaskStatus status_filter = 1;  // 0 = all
+  Priority priority_filter = 2;  // 0 = all
+  int32 limit = 3;               // 0 = no limit
+  int32 offset = 4;
+  string order_by = 5;           // "created_at", "priority", "status"
+}
+
+message ListTasksResponse {
+  repeated TaskInfo tasks = 1;
+  int32 total_count = 2;
+}
+
+message CancelTaskResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RetryTaskResponse {
+  bool success = 1;
+  string new_task_id = 2;
+  string message = 3;
+}

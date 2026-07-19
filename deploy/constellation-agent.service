@@ -1,0 +1,15 @@
+[Unit]
+Description=Constellation Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# The agent needs root access to manage cgroups and spawn subprocesses under isolation
+ExecStart=/opt/constellation/bin/constellation-agent
+Environment="RUST_LOG=info"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

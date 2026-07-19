@@ -1,0 +1,158 @@
+Edited task.md
+Edited build_ubuntu.sh
+Ran command: `mkdir e:\Projects\project_constellation\deploy`
+Edited constellation-controller.service
+Edited constellation-agent.service
+Edited install.sh
+Edited task.md
+
+I've set up everything you need to package and deploy Constellation on Ubuntu! Since compiling the Linux cgroups Rust agent directly on Windows can be tricky, the cleanest way to do this is to run the packaging script directly on your target Ubuntu machine (or in WSL/Docker).
+
+I have created a new `build_ubuntu.sh` script in your project root and a `deploy/` folder with everything required for a production deployment.
+
+### How to package and deploy for Ubuntu:
+
+1. **Move the Codebase**: Clone or copy this entire project folder to your target Ubuntu machine.
+2. **Build the Release Package**:
+   ```bash
+   chmod +x build_ubuntu.sh
+   ./build_ubuntu.sh
+   ```
+   *This script will compile the Dashboard (React), cross-compile the Controller/CLI (Go), compile the Agent (Rust), and package them into a neat `release/constellation-v2.0-ubuntu.tar.gz` file.*
+
+3. **Install on the Server**:
+   Extract the `.tar.gz` file on the server and run the included `install.sh` script:
+   ```bash
+   tar -xzvf constellation-v2.0-ubuntu.tar.gz
+   cd constellation-v2.0-ubuntu
+   sudo ./install.sh
+   ```
+
+### What `install.sh` does behind the scenes:
+- Copies the compiled binaries to `/opt/constellation/bin/`.
+- Configures the `constellation` CLI tool in your system `$PATH`.
+- Installs and reloads two **Systemd Services**:
+  - `constellation-controller.service`
+  - `constellation-agent.service`
+
+### Starting the cluster
+Once installed, you can enable and start the services using standard Ubuntu commands:
+```bash
+sudo systemctl enable --now constellation-controller
+sudo systemctl enable --now constellation-agent
+```
+You can view their production logs anytime using `sudo journalctl -fu constellation-controller`!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Viewed run.go:1-100
+
+There are a few ways to assign and run tasks on the Constellation cluster, depending on how you prefer to interact with it:
+
+### 1. Using the Constellation CLI (Recommended)
+Since we compiled the `constellation` CLI, you can submit tasks directly from your terminal. The controller's scheduler will automatically score the connected nodes and assign the task to the most optimal worker!
+
+Here are some examples of how to submit tasks using the CLI:
+
+**Basic Task:**
+```bash
+constellation run --cmd "echo 'Hello World'"
+```
+
+**Task with specific resource constraints (enforced by cgroups):**
+```bash
+constellation run --cmd "python train.py" --cpu 4 --memory 8GB
+```
+
+**High Priority Task:**
+```bash
+constellation run --cmd "make build" --priority high
+```
+
+**Targeting a specific node:**
+If you want to pin a task to a specific worker machine (instead of letting the scheduler pick), you can pass the node ID:
+```bash
+constellation run --cmd "bash update_system.sh" --node "node-12345"
+```
+
+*Note: Make sure you are authenticated with `constellation login` before running these commands!*
+
+---
+
+### 2. Using the REST API
+If you are building an automated pipeline (like CI/CD), you can submit tasks programmatically by hitting the Controller's REST API. 
+
+Make a `POST` request to `http://<controller-ip>:8080/api/v1/tasks` with your JWT token in the header:
+
+```json
+POST /api/v1/tasks
+Authorization: Bearer <your-jwt-token>
+Content-Type: application/json
+
+{
+  "name": "Data Processing",
+  "command": "python process_data.py",
+  "cpu_required": 2,
+  "memory_required": "4GB",
+  "priority": "normal"
+}
+```
+
+### 3. Web Dashboard (Under Development)
+Currently, the Web Dashboard provides a read-only view of your nodes and task history. Submitting tasks directly from the web UI is part of the future feature roadmap, but for now, the CLI and API are fully functional for orchestration!
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ran command: `npm run dev`
+Edited instructions.txt
+Viewed instructions.txt:84-104
+
+To deploy and use Constellation in a real-life production system, the dependency footprint is actually very lightweight by design (there is no need for external databases like PostgreSQL or Redis!). 
+
+Here is exactly what you need:
+
+### 1. Runtime Dependencies (The Servers)
+To run the built binaries on your production machines, you only need a standard Linux environment.
+
+* **Linux Kernel (Ubuntu 20.04+, Debian, CentOS)**: Required because the worker nodes rely on **Linux cgroups** to strictly enforce CPU and Memory isolation for tasks.
+* **Systemd**: The standard Linux init system, which we use (via the `.service` files) to keep the Controller and Agents running in the background and restart them if they crash.
+* **SQLite (Embedded)**: You **do not** need to install a database server. The Go controller embeds SQLite directly into the binary to store all cluster state persistently.
+
+### 2. Build-Time Dependencies (For Packaging)
+When you run the `build_ubuntu.sh` script to compile the source code into the production `.tar.gz` package, the build machine needs:
+* **Go (1.21+)**: To compile the Controller and the CLI.
+* **Node.js (18+) & npm**: To bundle the React dashboard into static HTML/JS files.
+* **Rust (Cargo)**: To compile the Agent.
+* **C Build Tools (`build-essential`)**: The Rust agent uses the `cgroups-rs` crate, which requires standard C-bindings (like `libc6-dev` and `gcc`) to compile successfully for Linux.
+
+### 3. Networking & Security (Production Best Practices)
+While not strictly required to make the binaries execute, a real-life deployment should have:
+* **Real TLS Certificates**: Currently, we generated self-signed certificates for gRPC. In production, you would use **Let's Encrypt / Certbot** to generate valid certificates for your domain.
+* **Reverse Proxy (Nginx / Caddy)**: It is standard practice to place a reverse proxy in front of the HTTP dashboard. Nginx would handle the HTTPS (SSL) termination and forward the traffic to the Constellation Controller running on `http://localhost:8080`.
+* **Firewall Configuration (UFW)**: 
+  * Port `8080` (HTTP) needs to be accessible by your users (or your reverse proxy).
+  * Port `9090` (gRPC) needs to be internally open between your Controller and Worker Nodes.
+
+Overall, the system is designed to be a "Zero-Dependency" distributed cluster once compiled. You just drop the binaries onto a fresh Ubuntu server, start the systemd service, and it works!

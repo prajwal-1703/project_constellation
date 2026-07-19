@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package constellation;
+
+option go_package = "github.com/constellation/proto";
+
+import "common.proto";
+
+// ─── Node Agent Service ─────────────────────────────────────────────────────
+// Runs on every worker node. The controller calls these RPCs.
+
+service NodeAgent {
+  // ── Discovery ──
+  rpc GetFullNodeInfo(Empty) returns (FullNodeInfo);
+  rpc GetInstalledSoftware(Empty) returns (SoftwareList);
+
+  // ── Real-time Monitoring ──
+  rpc StreamMetrics(MetricsRequest) returns (stream NodeMetrics);
+  rpc GetProcessList(Empty) returns (ProcessList);
+  rpc GetSystemLogs(LogRequest) returns (stream LogEntry);
+
+  // ── Task Execution ──
+  rpc ExecuteTask(TaskRequest) returns (stream TaskProgress);
+  rpc CancelTask(TaskID) returns (CancelResponse);
+
+  // ── File Transfer ──
+  rpc ReceiveFile(stream FileChunk) returns (FileReceipt);
+  rpc SendFile(FileRequest) returns (stream FileChunk);
+
+  // ── Dependency Management ──
+  rpc CheckDependencies(DependencyList) returns (DependencyReport);
+  rpc InstallDependency(InstallRequest) returns (stream InstallProgress);
+
+  // ── Health ──
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+// ─── Messages ────────────────────────────────────────────────────────────────
+
+message FullNodeInfo {
+  string node_id = 1;
+  OsInfo os = 2;
+  CpuInfo cpu = 3;
+  MemoryInfo memory = 4;
+  repeated DiskInfo disks = 5;
+  repeated NetworkInfo networks = 6;
+  double cpu_temperature = 7;
+  int64 uptime_seconds = 8;
+  double load_avg_1 = 9;
+  double load_avg_5 = 10;
+  double load_avg_15 = 11;
+  repeated string labels = 12;
+}
+
+message SoftwareList {
+  repeated SoftwareInfo software = 1;
+}
+
+message MetricsRequest {
+  int32 interval_seconds = 1; // How often to send metrics (default 5)
+}
+
+message NodeMetrics {
+  string node_id = 1;
+  int64 timestamp_unix = 2;
+  double cpu_usage_percent = 3;
+  double memory_usage_percent = 4;
+  uint64 memory_used_bytes = 5;
+  uint64 memory_available_bytes = 6;
+  double disk_usage_percent = 7;
+  uint64 disk_used_bytes = 8;
+  uint64 network_bytes_sent = 9;
+  uint64 network_bytes_recv = 10;
+  double load_avg_1 = 11;
+  double load_avg_5 = 12;
+  double load_avg_15 = 13;
+  double cpu_temperature = 14;
+  repeated PerCpuUsage per_cpu = 15;
+}
+
+message PerCpuUsage {
+  uint32 core_id = 1;
+  double usage_percent = 2;
+}
+
+message ProcessList {
+  repeated ProcessInfo processes = 1;
+}
+
+message LogRequest {
+  int32 lines = 1;       // Number of lines to return (0 = stream continuously)
+  string filter = 2;     // Grep filter
+  string source = 3;     // "system", "agent", "task"
+}
+
+message LogEntry {
+  int64 timestamp_unix = 1;
+  string level = 2;
+  string source = 3;
+  string message = 4;
+}
+
+message CancelResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DependencyList {
+  repeated string packages = 1;
+}
+
+message DependencyReport {
+  repeated DependencyStatus dependencies = 1;
+}
+
+message DependencyStatus {
+  string package_name = 1;
+  bool installed = 2;
+  string installed_version = 3;
+  string available_version = 4;
+}
+
+message InstallRequest {
+  string package_name = 1;
+  string package_manager = 2; // apt, dnf, pip, npm, etc.
+}
+
+message InstallProgress {
+  string package_name = 1;
+  string status = 2;   // downloading, installing, completed, failed
+  string log_line = 3;
+  bool done = 4;
+  bool success = 5;
+  string error = 6;
+}

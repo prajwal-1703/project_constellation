@@ -1,0 +1,21 @@
+# Binaries and compiled files
+*.exe
+*.dll
+*.so
+*.dylib
+release/
+bin/
+
+# Temporary and download files
+*.crdownload
+*.tmp
+*.temp
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Project specific
+certs/
+constellation.db
+.constellation/

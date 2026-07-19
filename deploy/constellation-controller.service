@@ -1,0 +1,14 @@
+[Unit]
+Description=Constellation Controller
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/constellation
+ExecStart=/opt/constellation/bin/constellation-controller -http :8080 -grpc :9090 -data /var/lib/constellation
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
