@@ -19,3 +19,5 @@ Thumbs.db
 certs/
 constellation.db
 .constellation/
+node_modules/
+target/
