@@ -1,6 +1,6 @@
 # Constellation 🚀
 
-Constellation is a lightweight, zero-dependency distributed task orchestration cluster. It allows you to reliably schedule, isolate, and run tasks across a network of worker nodes. Built for simplicity and performance, Constellation natively leverages Linux cgroups for strict resource isolation and embeds SQLite for persistent state management, completely removing the need for external databases.
+Constellation is a lightweight, zero-dependency distributed task orchestration cluster. Unlike typical container orchestrators (like Kubernetes or Docker Swarm) that manage pods and images, Constellation focuses on bare-metal simplicity. It effectively stitches together multiple small computers into a single, unified "virtual supercomputer" to seamlessly distribute and perform tasks. Built for performance, it natively leverages Linux cgroups for strict resource isolation and embeds SQLite for persistent state management, completely removing the need for external databases.
 
 ## 🌟 Key Features
 

@@ -1,4 +1,4 @@
-use sysinfo::{System, Disks, Networks, CpuRefreshKind, RefreshKind};
+use sysinfo::{System, Disks, Networks, CpuRefreshKind};
 use serde::{Deserialize, Serialize};
 
 /// Comprehensive hardware information about this machine.
@@ -14,6 +14,8 @@ pub struct HardwareInfo {
     pub memory_available: u64,
     pub disk_total: u64,
     pub disk_available: u64,
+    pub gpu_count: u32,
+    pub gpu_memory: u64,
     pub os_name: String,
     pub os_version: String,
     pub kernel_version: String,
@@ -116,6 +118,8 @@ pub fn discover_hardware() -> HardwareInfo {
     let uptime = System::uptime();
     let arch = std::env::consts::ARCH.to_string();
 
+    let (gpu_count, gpu_memory) = detect_gpus();
+
     HardwareInfo {
         cpu_model,
         cpu_vendor,
@@ -127,6 +131,8 @@ pub fn discover_hardware() -> HardwareInfo {
         memory_available,
         disk_total,
         disk_available,
+        gpu_count,
+        gpu_memory,
         os_name,
         os_version,
         kernel_version,
@@ -188,4 +194,26 @@ pub fn detect_installed_software() -> Vec<SoftwareInfo> {
 pub struct SoftwareInfo {
     pub name: String,
     pub version: String,
+}
+
+pub fn detect_gpus() -> (u32, u64) {
+    let mut count = 0;
+    let mut mem_total = 0;
+    
+    if let Ok(output) = std::process::Command::new("nvidia-smi")
+        .args(&["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
+        .output()
+    {
+        if output.status.success() {
+            let out_str = String::from_utf8_lossy(&output.stdout);
+            for line in out_str.lines() {
+                if let Ok(mem) = line.trim().parse::<u64>() {
+                    count += 1;
+                    mem_total += mem * 1024 * 1024; // MiB to Bytes
+                }
+            }
+        }
+    }
+    
+    (count, mem_total)
 }

@@ -161,6 +161,8 @@ async fn register_with_controller(
         "cpu_freq_mhz": hw.cpu_freq_mhz,
         "memory_total": hw.memory_total,
         "disk_total": hw.disk_total,
+        "gpu_count": hw.gpu_count,
+        "gpu_memory": hw.gpu_memory,
         "os_name": hw.os_name,
         "kernel_version": hw.kernel_version,
         "arch": hw.arch,

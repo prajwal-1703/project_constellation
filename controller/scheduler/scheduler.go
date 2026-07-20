@@ -105,6 +105,50 @@ func (s *Scheduler) scheduleCycle() {
 			continue
 		}
 
+		if task.IsDistributed && task.WorldSize > 1 {
+			gangNodes := s.findGangNodes(task, nodes)
+			if len(gangNodes) < task.WorldSize {
+				continue // Not enough resources
+			}
+			
+			masterAddr := gangNodes[0].IPAddress
+			if masterAddr == "" {
+				masterAddr = "127.0.0.1"
+			}
+			masterPort := "29500"
+
+			for i, node := range gangNodes {
+				chunk := &state.TaskChunk{
+					ParentTaskID: task.ID,
+					ChunkIndex:   i,
+					AssignedNode: node.ID,
+					Status:       "scheduled",
+				}
+				s.store.CreateTaskChunk(chunk)
+
+				s.wsHub.BroadcastEvent("task_scheduled", map[string]interface{}{
+					"task_id":     task.ID,
+					"chunk_id":    chunk.ID,
+					"node_id":     node.ID,
+					"node_name":   node.Hostname,
+					"world_size":  task.WorldSize,
+					"rank":        i,
+					"master_addr": masterAddr,
+					"master_port": masterPort,
+				})
+
+				s.store.UpdateNodeLiveMetrics(node.ID, &state.NodeLiveMetrics{
+					RunningTasks: node.RunningTasks + 1,
+					CPUUsage:     node.CPUUsage,
+					MemoryUsage:  node.MemoryUsage,
+					DiskUsage:    node.DiskUsage,
+					LoadAvg1:     node.LoadAvg1,
+				})
+			}
+			s.store.UpdateTaskStatus(task.ID, "scheduled")
+			continue
+		}
+
 		bestNode := s.findBestNode(task, nodes)
 		if bestNode == nil {
 			// No suitable node found — task stays in queue
@@ -195,7 +239,27 @@ func satisfiesConstraints(task *state.Task, node *state.Node) bool {
 		}
 	}
 
+	// GPU check
+	if task.GPURequired > 0 {
+		if node.GPUCount < task.GPURequired {
+			return false
+		}
+	}
+
 	return true
+}
+
+func (s *Scheduler) findGangNodes(task *state.Task, nodes []*state.Node) []*state.Node {
+	var candidates []*state.Node
+	for _, node := range nodes {
+		if node.Status == "online" && satisfiesConstraints(task, node) {
+			candidates = append(candidates, node)
+		}
+	}
+	if len(candidates) >= task.WorldSize {
+		return candidates[:task.WorldSize]
+	}
+	return nil
 }
 
 // heartbeatMonitor checks for nodes that haven't sent heartbeats.

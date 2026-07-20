@@ -19,6 +19,8 @@ var (
 	runCmd_timeout  int
 	runCmd_node     string
 	runCmd_split    string
+	runCmd_gpus     int
+	runCmd_worldSize int
 )
 
 var runCmd = &cobra.Command{
@@ -42,6 +44,12 @@ Examples:
 			"priority":    runCmd_priority,
 			"runtime":     runCmd_runtime,
 			"retry_max":   runCmd_retry,
+			"gpu_required": runCmd_gpus,
+		}
+
+		if runCmd_worldSize > 1 {
+			req["is_distributed"] = true
+			req["world_size"] = runCmd_worldSize
 		}
 
 		if runCmd_name != "" {
@@ -242,6 +250,8 @@ func init() {
 	runCmd.Flags().IntVar(&runCmd_timeout, "timeout", 0, "Timeout in seconds")
 	runCmd.Flags().StringVar(&runCmd_node, "node", "", "Pin to specific node")
 	runCmd.Flags().StringVar(&runCmd_split, "split", "", "Split strategy: chunk, map-reduce, pipeline")
+	runCmd.Flags().IntVar(&runCmd_gpus, "gpus", 0, "GPUs required per node")
+	runCmd.Flags().IntVar(&runCmd_worldSize, "world-size", 1, "Number of nodes required (for Gang Scheduling)")
 
 	tasksCmd.AddCommand(tasksListCmd)
 	tasksCmd.AddCommand(tasksInfoCmd)

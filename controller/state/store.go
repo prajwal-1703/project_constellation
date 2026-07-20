@@ -39,6 +39,8 @@ type Node struct {
 	CPUFreqMHz      float64   `json:"cpu_freq_mhz"`
 	MemoryTotal     int64     `json:"memory_total"`
 	DiskTotal       int64     `json:"disk_total"`
+	GPUCount        int       `json:"gpu_count"`
+	GPUMemory       int64     `json:"gpu_memory"`
 	OSName          string    `json:"os_name"`
 	KernelVersion   string    `json:"kernel_version"`
 	Arch            string    `json:"arch"`
@@ -71,6 +73,8 @@ type Task struct {
 	DockerImage     string    `json:"docker_image,omitempty"`
 	CPURequired     int       `json:"cpu_required"`
 	MemoryRequired  int64     `json:"memory_required"`
+	GPURequired     int       `json:"gpu_required"`
+	GPUMemoryRequired int64     `json:"gpu_memory_required"`
 	Priority        string    `json:"priority"`
 	RetryMax        int       `json:"retry_max"`
 	RetryCount      int       `json:"retry_count"`
@@ -92,6 +96,9 @@ type Task struct {
 	ChunkSize       int       `json:"chunk_size,omitempty"`
 	SplitBy         string    `json:"split_by,omitempty"`
 	Chunks          []TaskChunk `json:"chunks,omitempty"`
+	IsDistributed   bool      `json:"is_distributed"`
+	WorldSize       int       `json:"world_size"`
+	GangID          string    `json:"gang_id,omitempty"`
 }
 
 type TaskChunk struct {
@@ -205,6 +212,8 @@ func (s *Store) migrate() error {
 		cpu_freq_mhz REAL DEFAULT 0,
 		memory_total INTEGER DEFAULT 0,
 		disk_total INTEGER DEFAULT 0,
+		gpu_count INTEGER DEFAULT 0,
+		gpu_memory INTEGER DEFAULT 0,
 		os_name TEXT DEFAULT '',
 		kernel_version TEXT DEFAULT '',
 		arch TEXT DEFAULT '',
@@ -226,6 +235,8 @@ func (s *Store) migrate() error {
 		docker_image TEXT DEFAULT '',
 		cpu_required INTEGER DEFAULT 1,
 		memory_required INTEGER DEFAULT 0,
+		gpu_required INTEGER DEFAULT 0,
+		gpu_memory_required INTEGER DEFAULT 0,
 		priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('critical','high','normal','low')),
 		retry_max INTEGER DEFAULT 0,
 		retry_count INTEGER DEFAULT 0,
@@ -245,7 +256,10 @@ func (s *Store) migrate() error {
 		reduce_command TEXT DEFAULT '',
 		max_nodes INTEGER DEFAULT 0,
 		chunk_size INTEGER DEFAULT 0,
-		split_by TEXT DEFAULT ''
+		split_by TEXT DEFAULT '',
+		is_distributed BOOLEAN DEFAULT 0,
+		world_size INTEGER DEFAULT 1,
+		gang_id TEXT DEFAULT ''
 	);
 
 	CREATE TABLE IF NOT EXISTS task_chunks (
@@ -356,12 +370,12 @@ func (s *Store) RegisterNode(node *Node) error {
 
 	_, err := s.db.Exec(
 		`INSERT INTO nodes (id, hostname, ip_address, mac_address, agent_port, role, status,
-			cpu_model, cpu_cores, cpu_threads, cpu_freq_mhz, memory_total, disk_total,
+			cpu_model, cpu_cores, cpu_threads, cpu_freq_mhz, memory_total, disk_total, gpu_count, gpu_memory,
 			os_name, kernel_version, arch, cluster_id, joined_at, last_heartbeat, labels)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		node.ID, node.Hostname, node.IPAddress, node.MACAddress, node.AgentPort,
 		node.Role, node.Status, node.CPUModel, node.CPUCores, node.CPUThreads,
-		node.CPUFreqMHz, node.MemoryTotal, node.DiskTotal, node.OSName,
+		node.CPUFreqMHz, node.MemoryTotal, node.DiskTotal, node.GPUCount, node.GPUMemory, node.OSName,
 		node.KernelVersion, node.Arch, node.ClusterID, node.JoinedAt,
 		node.LastHeartbeat, string(labelsJSON),
 	)
@@ -379,7 +393,7 @@ func (s *Store) getNodeUnsafe(id string) (*Node, error) {
 	row := s.db.QueryRow(
 		`SELECT id, hostname, ip_address, mac_address, agent_port, role, status,
 			ssh_user, ssh_port, cpu_model, cpu_cores, cpu_threads, cpu_freq_mhz,
-			memory_total, disk_total, os_name, kernel_version, arch, cluster_id,
+			memory_total, disk_total, gpu_count, gpu_memory, os_name, kernel_version, arch, cluster_id,
 			joined_at, last_heartbeat, labels
 		 FROM nodes WHERE id = ?`, id,
 	)
@@ -393,7 +407,7 @@ func (s *Store) ListNodes() ([]*Node, error) {
 	rows, err := s.db.Query(
 		`SELECT id, hostname, ip_address, mac_address, agent_port, role, status,
 			ssh_user, ssh_port, cpu_model, cpu_cores, cpu_threads, cpu_freq_mhz,
-			memory_total, disk_total, os_name, kernel_version, arch, cluster_id,
+			memory_total, disk_total, gpu_count, gpu_memory, os_name, kernel_version, arch, cluster_id,
 			joined_at, last_heartbeat, labels
 		 FROM nodes ORDER BY joined_at`,
 	)
@@ -476,7 +490,7 @@ func (s *Store) GetOnlineWorkerNodes() ([]*Node, error) {
 	rows, err := s.db.Query(
 		`SELECT id, hostname, ip_address, mac_address, agent_port, role, status,
 			ssh_user, ssh_port, cpu_model, cpu_cores, cpu_threads, cpu_freq_mhz,
-			memory_total, disk_total, os_name, kernel_version, arch, cluster_id,
+			memory_total, disk_total, gpu_count, gpu_memory, os_name, kernel_version, arch, cluster_id,
 			joined_at, last_heartbeat, labels
 		 FROM nodes WHERE status = 'online' AND role = 'worker'`,
 	)
@@ -529,23 +543,26 @@ func (s *Store) CreateTask(task *Task) error {
 	if task.Type == "" {
 		task.Type = "simple"
 	}
+	if task.WorldSize == 0 {
+		task.WorldSize = 1
+	}
 
 	envJSON, _ := json.Marshal(task.EnvVars)
 
 	_, err := s.db.Exec(
 		`INSERT INTO tasks (id, name, status, type, split_strategy, command, runtime,
-			docker_image, cpu_required, memory_required, priority, retry_max, retry_count,
+			docker_image, cpu_required, memory_required, gpu_required, gpu_memory_required, priority, retry_max, retry_count,
 			timeout_seconds, submitted_by, assigned_node, target_node, exit_code,
 			error_message, created_at, env_vars, working_dir, input_file, output_dir,
-			reduce_command, max_nodes, chunk_size, split_by)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			reduce_command, max_nodes, chunk_size, split_by, is_distributed, world_size, gang_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		task.ID, task.Name, task.Status, task.Type, task.SplitStrategy,
 		task.Command, task.Runtime, task.DockerImage, task.CPURequired,
-		task.MemoryRequired, task.Priority, task.RetryMax, task.RetryCount,
+		task.MemoryRequired, task.GPURequired, task.GPUMemoryRequired, task.Priority, task.RetryMax, task.RetryCount,
 		task.TimeoutSeconds, task.SubmittedBy, nullIfEmpty(task.AssignedNode), task.TargetNode,
 		task.ExitCode, task.ErrorMessage, task.CreatedAt, string(envJSON),
 		task.WorkingDir, task.InputFile, task.OutputDir, task.ReduceCommand,
-		task.MaxNodes, task.ChunkSize, task.SplitBy,
+		task.MaxNodes, task.ChunkSize, task.SplitBy, task.IsDistributed, task.WorldSize, task.GangID,
 	)
 	return err
 }
@@ -560,11 +577,11 @@ func (s *Store) GetTask(id string) (*Task, error) {
 func (s *Store) getTaskUnsafe(id string) (*Task, error) {
 	row := s.db.QueryRow(
 		`SELECT id, name, status, type, split_strategy, command, runtime,
-			docker_image, cpu_required, memory_required, priority, retry_max,
+			docker_image, cpu_required, memory_required, gpu_required, gpu_memory_required, priority, retry_max,
 			retry_count, timeout_seconds, submitted_by, assigned_node, target_node,
 			exit_code, error_message, created_at, started_at, completed_at,
 			env_vars, working_dir, input_file, output_dir, reduce_command,
-			max_nodes, chunk_size, split_by
+			max_nodes, chunk_size, split_by, is_distributed, world_size, gang_id
 		 FROM tasks WHERE id = ?`, id,
 	)
 	task, err := s.scanTask(row)
@@ -589,11 +606,11 @@ func (s *Store) ListTasks(statusFilter, priorityFilter string, limit, offset int
 	defer s.mu.RUnlock()
 
 	query := `SELECT id, name, status, type, split_strategy, command, runtime,
-		docker_image, cpu_required, memory_required, priority, retry_max,
+		docker_image, cpu_required, memory_required, gpu_required, gpu_memory_required, priority, retry_max,
 		retry_count, timeout_seconds, submitted_by, assigned_node, target_node,
 		exit_code, error_message, created_at, started_at, completed_at,
 		env_vars, working_dir, input_file, output_dir, reduce_command,
-		max_nodes, chunk_size, split_by
+		max_nodes, chunk_size, split_by, is_distributed, world_size, gang_id
 	 FROM tasks WHERE 1=1`
 	countQuery := `SELECT COUNT(*) FROM tasks WHERE 1=1`
 	var args []interface{}
@@ -694,11 +711,11 @@ func (s *Store) GetQueuedTasks() ([]*Task, error) {
 
 	rows, err := s.db.Query(
 		`SELECT id, name, status, type, split_strategy, command, runtime,
-			docker_image, cpu_required, memory_required, priority, retry_max,
+			docker_image, cpu_required, memory_required, gpu_required, gpu_memory_required, priority, retry_max,
 			retry_count, timeout_seconds, submitted_by, assigned_node, target_node,
 			exit_code, error_message, created_at, started_at, completed_at,
 			env_vars, working_dir, input_file, output_dir, reduce_command,
-			max_nodes, chunk_size, split_by
+			max_nodes, chunk_size, split_by, is_distributed, world_size, gang_id
 		 FROM tasks WHERE status IN ('submitted', 'queued')
 		 ORDER BY
 			CASE priority
@@ -979,7 +996,7 @@ func (s *Store) scanNode(row scannable) (*Node, error) {
 		&n.ID, &n.Hostname, &n.IPAddress, &n.MACAddress, &n.AgentPort,
 		&n.Role, &n.Status, &n.SSHUser, &n.SSHPort, &n.CPUModel,
 		&n.CPUCores, &n.CPUThreads, &n.CPUFreqMHz, &n.MemoryTotal,
-		&n.DiskTotal, &n.OSName, &n.KernelVersion, &n.Arch,
+		&n.DiskTotal, &n.GPUCount, &n.GPUMemory, &n.OSName, &n.KernelVersion, &n.Arch,
 		&n.ClusterID, &n.JoinedAt, &n.LastHeartbeat, &labelsJSON,
 	)
 	if err == sql.ErrNoRows {
@@ -1022,12 +1039,12 @@ func (s *Store) scanTask(row scannable) (*Task, error) {
 	var assignedNode sql.NullString
 	err := row.Scan(
 		&t.ID, &t.Name, &t.Status, &t.Type, &t.SplitStrategy, &t.Command,
-		&t.Runtime, &t.DockerImage, &t.CPURequired, &t.MemoryRequired,
+		&t.Runtime, &t.DockerImage, &t.CPURequired, &t.MemoryRequired, &t.GPURequired, &t.GPUMemoryRequired,
 		&t.Priority, &t.RetryMax, &t.RetryCount, &t.TimeoutSeconds,
 		&t.SubmittedBy, &assignedNode, &t.TargetNode, &t.ExitCode,
 		&t.ErrorMessage, &t.CreatedAt, &startedAt, &completedAt,
 		&envJSON, &t.WorkingDir, &t.InputFile, &t.OutputDir,
-		&t.ReduceCommand, &t.MaxNodes, &t.ChunkSize, &t.SplitBy,
+		&t.ReduceCommand, &t.MaxNodes, &t.ChunkSize, &t.SplitBy, &t.IsDistributed, &t.WorldSize, &t.GangID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("task not found")

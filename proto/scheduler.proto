@@ -45,6 +45,10 @@ message SubmitTaskRequest {
 
   // Node pinning
   string target_node = 18;     // empty = let scheduler decide
+  
+  // Distributed (Gang Scheduling)
+  bool is_distributed = 19;
+  int32 world_size = 20;
 }
 
 message SubmitTaskResponse {

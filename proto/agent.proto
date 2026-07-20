@@ -50,6 +50,7 @@ message FullNodeInfo {
   double load_avg_5 = 10;
   double load_avg_15 = 11;
   repeated string labels = 12;
+  repeated GpuInfo gpus = 13;
 }
 
 message SoftwareList {

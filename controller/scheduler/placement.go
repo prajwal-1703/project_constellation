@@ -47,7 +47,7 @@ func PlaceTask(task *state.Task, nodes []*state.Node) (*PlacementResult, error) 
 				msg += r + "\n"
 			}
 		}
-		return nil, fmt.Errorf(msg)
+		return nil, fmt.Errorf("%s", msg)
 	}
 
 	// Phase 2: If target node specified, use it

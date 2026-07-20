@@ -67,6 +67,15 @@ message ResourceRequirements {
   uint64 disk_bytes = 3;
   string docker_image = 4;
   Runtime runtime = 5;
+  uint32 gpu_count = 6;
+  uint64 gpu_memory_bytes = 7;
+}
+
+message GpuInfo {
+  string uuid = 1;
+  string name = 2;
+  uint64 memory_total = 3;
+  uint64 memory_free = 4;
 }
 
 message CpuInfo {
@@ -148,6 +157,9 @@ message TaskRequest {
   string working_dir = 9;
   string input_file = 10;
   string output_dir = 11;
+  bool is_distributed = 12;
+  int32 world_size = 13;
+  string gang_id = 14;
 }
 
 message TaskProgress {
@@ -181,6 +193,9 @@ message TaskInfo {
   int64 completed_at = 18;
   SplitStrategy split_strategy = 19;
   repeated TaskChunkInfo chunks = 20;
+  bool is_distributed = 21;
+  int32 world_size = 22;
+  string gang_id = 23;
 }
 
 message TaskChunkInfo {
