@@ -9,7 +9,7 @@ sudo apt-get update
 
 # Install basic requirements and C Build Tools
 echo "Installing C build tools and utilities..."
-sudo apt-get install -y software-properties-common curl wget git build-essential libc6-dev gcc pkg-config
+sudo apt-get install -y software-properties-common curl wget git build-essential libc6-dev gcc pkg-config libssl-dev
 if grep -qi ubuntu /etc/os-release; then
     sudo add-apt-repository -y ppa:dqlite/dev
     sudo apt-get update
