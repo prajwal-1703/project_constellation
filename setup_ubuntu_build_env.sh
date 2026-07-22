@@ -45,10 +45,10 @@ if ! command -v go &> /dev/null || ! go version | grep -q "go1.2"; then
     
     # Add to bashrc if not already there
     if ! grep -q "/usr/local/go/bin" "$REAL_HOME/.bashrc"; then
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> "$REAL_HOME/.bashrc"
+        echo 'export PATH=/usr/local/go/bin:$PATH' >> "$REAL_HOME/.bashrc"
         chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bashrc" || true
     fi
-    export PATH=$PATH:/usr/local/go/bin
+    export PATH=/usr/local/go/bin:$PATH
 else
     echo "Go is already installed: $(go version)"
 fi

@@ -1,8 +1,10 @@
 #!/bin/bash
 set -e
 
-# Constellation Release Builder for Ubuntu
 # Run this script on an Ubuntu machine to compile and package the release.
+
+# Ensure newly installed rust and go binaries are always found first
+export PATH="/usr/local/go/bin:$HOME/.cargo/bin:$PATH"
 
 echo "✦ Constellation Packaging Script for Ubuntu ✦"
 
