@@ -14,6 +14,7 @@ echo "Installing Constellation..."
 mkdir -p /opt/constellation
 cp -r bin /opt/constellation/
 cp -r dashboard /opt/constellation/
+cp -r certs /opt/constellation/
 
 # Create data directory
 mkdir -p /var/lib/constellation
