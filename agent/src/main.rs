@@ -2,11 +2,12 @@ mod discovery;
 mod executor;
 mod health;
 mod metrics;
+mod cgroup;
 
 use clap::Parser;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, error, warn};
+use tracing::{info, warn};
 
 /// Constellation Node Agent — runs on every worker machine
 #[derive(Parser, Debug)]

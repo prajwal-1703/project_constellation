@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, debug};
+use tracing::{warn, debug};
 use sysinfo::System;
 
 use crate::AgentState;
@@ -46,7 +46,7 @@ pub async fn heartbeat_loop(
         drop(s); // Release lock before HTTP call
 
         // Send heartbeat via REST (in production, this would be gRPC streaming)
-        let heartbeat_data = serde_json::json!({
+        let _heartbeat_data = serde_json::json!({
             "node_id": node_id,
             "cpu_usage": cpu_usage,
             "memory_usage": memory_usage,

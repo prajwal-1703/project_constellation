@@ -37,6 +37,7 @@ hostname = "0.4"
 chrono = "0.4"
 tonic = "0.10"
 prost = "0.12"
+libc = "0.2"
 
 [build-dependencies]
 tonic-build = "0.10"

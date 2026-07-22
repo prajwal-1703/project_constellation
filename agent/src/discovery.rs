@@ -58,7 +58,7 @@ pub fn discover_hardware() -> HardwareInfo {
         .map(|c| c.vendor_id().to_string())
         .unwrap_or_else(|| "Unknown".to_string());
     let cpu_threads = cpus.len() as u32;
-    let cpu_cores = sys.physical_core_count().unwrap_or(cpu_threads as usize) as u32;
+    let cpu_cores = sysinfo::System::physical_core_count().unwrap_or(cpu_threads as usize) as u32;
     let cpu_freq_mhz = cpus.first()
         .map(|c| c.frequency() as f64)
         .unwrap_or(0.0);

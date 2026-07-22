@@ -1,4 +1,4 @@
-use sysinfo::{System, Disks, Networks, CpuRefreshKind};
+use sysinfo::{System, CpuRefreshKind};
 use tracing::debug;
 
 /// Metrics collection loop — gathers system metrics at regular intervals.
@@ -18,7 +18,7 @@ pub async fn metrics_loop(interval_seconds: u64) {
         let cpu_usage = sys.global_cpu_usage();
         let memory_total = sys.total_memory();
         let memory_used = sys.used_memory();
-        let memory_available = sys.available_memory();
+        let _memory_available = sys.available_memory();
 
         // Per-CPU usage
         let per_cpu: Vec<f32> = sys.cpus().iter()
