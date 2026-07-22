@@ -2,7 +2,7 @@
 
 #[cfg(target_os = "linux")]
 pub fn setup_cgroup(task_id: &str, cpu_cores: u32, memory_bytes: u64, pid: u32) -> Result<(), String> {
-    use cgroups_rs::{cgroup_builder::CgroupBuilder, hierarchies, CgroupPid, MaxValue};
+    use cgroups_rs::{cgroup_builder::CgroupBuilder, hierarchies, CgroupPid};
     
     let cgroup_name = format!("constellation-{}", task_id);
     let hier = hierarchies::auto();
@@ -33,12 +33,11 @@ pub fn setup_cgroup(task_id: &str, cpu_cores: u32, memory_bytes: u64, pid: u32) 
 
 #[cfg(target_os = "linux")]
 pub fn cleanup_cgroup(task_id: &str) {
-    use cgroups_rs::{cgroup_builder::CgroupBuilder, hierarchies};
+    use cgroups_rs::hierarchies;
     let cgroup_name = format!("constellation-{}", task_id);
     let hier = hierarchies::auto();
-    if let Ok(cg) = cgroups_rs::cgroup::Cgroup::load(hier, &cgroup_name) {
-        let _ = cg.delete();
-    }
+    let cg = cgroups_rs::cgroup::Cgroup::load(hier, &cgroup_name);
+    let _ = cg.delete();
 }
 
 #[cfg(not(target_os = "linux"))]
