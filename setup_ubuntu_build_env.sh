@@ -3,6 +3,15 @@ set -e
 
 echo "✦ Constellation Build Environment Setup for Ubuntu ✦"
 
+# Get the real user if running with sudo
+if [ -n "$SUDO_USER" ]; then
+    REAL_USER="$SUDO_USER"
+    REAL_HOME=$(eval echo "~$SUDO_USER")
+else
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
+fi
+
 # Update package lists
 echo "Updating apt package lists..."
 sudo apt-get update
@@ -35,8 +44,9 @@ if ! command -v go &> /dev/null || ! go version | grep -q "go1.2"; then
     rm go${GO_VERSION}.linux-amd64.tar.gz
     
     # Add to bashrc if not already there
-    if ! grep -q "/usr/local/go/bin" ~/.bashrc; then
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+    if ! grep -q "/usr/local/go/bin" "$REAL_HOME/.bashrc"; then
+        echo 'export PATH=$PATH:/usr/local/go/bin' >> "$REAL_HOME/.bashrc"
+        chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bashrc" || true
     fi
     export PATH=$PATH:/usr/local/go/bin
 else
@@ -44,19 +54,21 @@ else
 fi
 
 # 3. Install Rust
-if ! command -v cargo &> /dev/null; then
+if ! sudo -u "$REAL_USER" command -v cargo &> /dev/null; then
     echo "Installing Rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    sudo -u "$REAL_USER" bash -c "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
     # Ensure cargo is in PATH for the remainder of this script
-    source "$HOME/.cargo/env"
+    if [ -f "$REAL_HOME/.cargo/env" ]; then
+        source "$REAL_HOME/.cargo/env"
+    fi
 else
-    echo "Rust is already installed: $(cargo --version)"
+    echo "Rust is already installed: $(sudo -u "$REAL_USER" cargo --version)"
 fi
 
 echo ""
 echo "✅ All build dependencies have been installed successfully!"
 echo "⚠️  IMPORTANT: To update your current terminal session with the new paths, please run:"
-echo "    source ~/.bashrc"
-echo "    source ~/.cargo/env"
+echo "    source $REAL_HOME/.bashrc"
+echo "    source $REAL_HOME/.cargo/env"
 echo ""
 echo "After that, you can run: ./build_ubuntu.sh"
