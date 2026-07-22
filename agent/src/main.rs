@@ -187,11 +187,13 @@ async fn register_with_controller(
     let node_id = result["node_id"].as_str().unwrap_or("").to_string();
     let cluster_id = result["cluster_id"].as_str().unwrap_or("").to_string();
     let cluster_name = result["cluster_name"].as_str().unwrap_or("").to_string();
+    let jwt_token = result["token"].as_str().unwrap_or(token).to_string();
 
     let mut s = state.write().await;
     s.node_id = node_id;
     s.cluster_id = Some(cluster_id);
     s.cluster_name = Some(cluster_name);
+    s.token = jwt_token;
     s.is_registered = true;
 
     Ok(())

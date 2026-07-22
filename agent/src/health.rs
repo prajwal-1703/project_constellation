@@ -43,6 +43,7 @@ pub async fn heartbeat_loop(
 
         let node_id = s.node_id.clone();
         let running_tasks = s.running_tasks;
+        let jwt_token = s.token.clone();
         drop(s); // Release lock before HTTP call
 
         // Send heartbeat via REST (in production, this would be gRPC streaming)
@@ -58,6 +59,7 @@ pub async fn heartbeat_loop(
         // We use the node update endpoint
         match client
             .put(format!("{}/api/v1/nodes/{}/status", controller_url, node_id))
+            .header("Authorization", format!("Bearer {}", jwt_token))
             .json(&serde_json::json!({"status": "online"}))
             .send()
             .await

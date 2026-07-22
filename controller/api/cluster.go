@@ -5,7 +5,10 @@ import (
 	"runtime"
 
 	"github.com/constellation/controller/state"
+	auth_middleware "github.com/constellation/controller/api/middleware"
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
+	"time"
 )
 
 // ─── Cluster Endpoints ──────────────────────────────────────────────────────
@@ -260,10 +263,21 @@ func (s *Server) HandleNodeJoin(w http.ResponseWriter, r *http.Request) {
 		"node": node,
 	})
 
+	// Generate JWT for the node
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, auth_middleware.Claims{
+		Username: node.ID,
+		Role:     "node",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(365 * 24 * time.Hour)),
+		},
+	})
+	tokenString, _ := token.SignedString(auth_middleware.JWTSecret)
+
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"node_id":      node.ID,
 		"cluster_id":   cluster.ID,
 		"cluster_name": cluster.Name,
+		"token":        tokenString,
 		"message":      "Successfully joined cluster '" + cluster.Name + "'",
 	})
 }
