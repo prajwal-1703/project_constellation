@@ -103,7 +103,7 @@ export function useConstellation(token: string | null) {
     };
   }, [fetchStatus, fetchNodes, fetchTasks]);
 
-  return { status, nodes, tasks, connected, API_BASE };
+  return { status, nodes, tasks, connected, API_BASE, mutate: fetchTasks };
 }
 
 export function formatBytes(bytes: number) {

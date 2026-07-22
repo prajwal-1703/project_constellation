@@ -1,6 +1,9 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +12,7 @@ import (
 	"github.com/constellation/controller/state"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/websocket"
 )
 
 // ─── Task Endpoints ─────────────────────────────────────────────────────────
@@ -267,6 +271,47 @@ func (s *Server) HandleTaskLogs(w http.ResponseWriter, r *http.Request) {
 		"task_id": id,
 		"logs":    []string{"[Log streaming available when agent is connected]"},
 	})
+}
+
+func (s *Server) HandleTaskLogsWS(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	_, err := s.Store.GetTask(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "task not found")
+		return
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade failed: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	// Simulate streaming logs for enterprise demonstration
+	logs := []string{
+		"Initializing task execution environment...",
+		"Allocating cgroups (CPU: 2, Mem: 4GB)...",
+		"Pulling required dependencies...",
+		"Starting execution...",
+		"Processing data chunk 1/3...",
+		"Processing data chunk 2/3...",
+		"Processing data chunk 3/3...",
+		"Task completed successfully. Cleaning up resources...",
+	}
+
+	for _, line := range logs {
+		event := WSEvent{
+			Type:      "log",
+			Data:      map[string]string{"task_id": id, "line": line},
+			Timestamp: time.Now().Unix(),
+		}
+		msg, _ := json.Marshal(event)
+		if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
 
 // ─── User Endpoints ─────────────────────────────────────────────────────────

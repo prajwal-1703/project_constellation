@@ -45,6 +45,7 @@ cd ..
 echo "[2/3] Building Controller and CLI..."
 export GOOS=linux
 export GOARCH=amd64
+export CGO_ENABLED=1
 cd controller
 go build -o ../$DIST_DIR/bin/constellation-controller ./cmd/controller
 cd ..

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import { LayoutDashboard, Server, ListTodo, Settings, Cpu } from 'lucide-react';
 import './index.css';
 
@@ -7,13 +7,14 @@ import './index.css';
 import Dashboard from './pages/Dashboard';
 import Nodes from './pages/Nodes';
 import Tasks from './pages/Tasks';
+import Analytics from './pages/Analytics';
 
 const Sidebar = ({ onLogout, username }: { onLogout: () => void, username: string | null }) => {
   const navItems = [
     { name: 'Overview', path: '/', icon: <LayoutDashboard size={20} /> },
     { name: 'Nodes', path: '/nodes', icon: <Server size={20} /> },
     { name: 'Tasks', path: '/tasks', icon: <ListTodo size={20} /> },
-    { name: 'Resources', path: '/resources', icon: <Cpu size={20} /> },
+    { name: 'Analytics', path: '/analytics', icon: <Cpu size={20} /> },
     { name: 'Settings', path: '/settings', icon: <Settings size={20} /> },
   ];
 
@@ -115,6 +116,7 @@ const App = () => {
             <Route path="/" element={<Dashboard />} />
             <Route path="/nodes" element={<Nodes />} />
             <Route path="/tasks" element={<Tasks />} />
+            <Route path="/analytics" element={<Analytics />} />
             {/* Fallbacks for uncompleted pages */}
             <Route path="*" element={
               <div className="glass-panel" style={{ padding: '40px', textAlign: 'center' }}>

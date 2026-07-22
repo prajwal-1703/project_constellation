@@ -1,9 +1,8 @@
-import React from 'react';
 import { useConstellation, formatBytes } from '../hooks/useConstellation';
-import { Server, Cpu, HardDrive, Activity, Clock, Trash2, Power } from 'lucide-react';
+import { Server, Cpu, HardDrive } from 'lucide-react';
 
 const Nodes = () => {
-  const { nodes, API_BASE } = useConstellation(localStorage.getItem('constellation_token'));
+  const { nodes } = useConstellation(localStorage.getItem('constellation_token'));
 
   const getStatusBadge = (status: string) => {
     switch (status) {

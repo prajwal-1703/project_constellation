@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	_ "modernc.org/sqlite"
 )
 
 // ─── Models ──────────────────────────────────────────────────────────────────
@@ -157,17 +156,7 @@ type NodeLiveMetrics struct {
 	LastUpdate     time.Time
 }
 
-func NewStore(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
-
-	// Enable WAL mode for better concurrency
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		return nil, fmt.Errorf("failed to set WAL mode: %w", err)
-	}
-
+func NewStore(db *sql.DB) (*Store, error) {
 	s := &Store{
 		db:          db,
 		liveMetrics: make(map[string]*NodeLiveMetrics),

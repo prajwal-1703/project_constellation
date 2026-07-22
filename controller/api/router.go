@@ -78,14 +78,16 @@ func NewServer(store *state.Store) *Server {
 			r.Delete("/tasks/{id}", s.HandleCancelTask)
 			r.Post("/tasks/{id}/retry", s.HandleRetryTask)
 			r.Get("/tasks/{id}/logs", s.HandleTaskLogs)
+			r.Get("/tasks/{id}/logs/ws", s.HandleTaskLogsWS)
 
 			// Users
 			r.Get("/users", s.HandleListUsers)
 			r.Post("/users", s.HandleCreateUser)
 			r.Delete("/users/{username}", s.HandleDeleteUser)
 
-			// Audit
+			// Audit & Analytics
 			r.Get("/audit", s.HandleListAuditLog)
+			r.Get("/analytics", s.HandleAnalytics)
 		})
 
 	})

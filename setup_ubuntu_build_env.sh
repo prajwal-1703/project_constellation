@@ -9,7 +9,7 @@ sudo apt-get update
 
 # Install basic requirements and C Build Tools
 echo "Installing C build tools and utilities..."
-sudo apt-get install -y curl wget git build-essential libc6-dev gcc
+sudo apt-get install -y curl wget git build-essential libc6-dev gcc libdqlite-dev
 
 # 1. Install Node.js (18.x)
 if ! command -v node &> /dev/null || ! node -v | grep -q "v18\|v19\|v20\|v21\|v22"; then

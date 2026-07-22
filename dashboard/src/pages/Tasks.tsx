@@ -1,8 +1,64 @@
+import { useState } from 'react';
 import { useConstellation } from '../hooks/useConstellation';
-import { Activity, Play, Square, RotateCcw, Terminal, TerminalSquare } from 'lucide-react';
+import { Play, Square, RotateCcw, Terminal, TerminalSquare, X } from 'lucide-react';
+import LogViewer from '../components/LogViewer';
+import { useForm } from 'react-hook-form';
 
 const Tasks = () => {
-  const { tasks } = useConstellation(localStorage.getItem('constellation_token'));
+  const token = localStorage.getItem('constellation_token');
+  const { tasks, mutate } = useConstellation(token);
+  const [viewingLogsFor, setViewingLogsFor] = useState<string | null>(null);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+  const { register, handleSubmit, reset } = useForm();
+
+  const handleCancelTask = async (id: string) => {
+    try {
+      await fetch(`/api/v1/tasks/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      mutate();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRetryTask = async (id: string) => {
+    try {
+      await fetch(`/api/v1/tasks/${id}/retry`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      mutate();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const onSubmitTask = async (data: any) => {
+    try {
+      await fetch('/api/v1/tasks', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: data.name,
+          command: data.command,
+          priority: data.priority,
+          cpu_required: parseInt(data.cpu) || 1,
+          memory_required: parseInt(data.memory) || 0
+        })
+      });
+      setShowSubmitModal(false);
+      reset();
+      mutate();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -32,8 +88,7 @@ const Tasks = () => {
           <p style={{ color: 'var(--text-secondary)' }}>Monitor and manage distributed workloads.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="btn btn-outline">Clear Completed</button>
-          <button className="btn btn-primary" style={{ gap: '8px' }}>
+          <button className="btn btn-primary" style={{ gap: '8px' }} onClick={() => setShowSubmitModal(true)}>
             <Play size={16} fill="currentColor" /> Submit Task
           </button>
         </div>
@@ -112,15 +167,15 @@ const Tasks = () => {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="btn-ghost" title="View Logs" style={{ padding: '6px', borderRadius: '6px' }}>
+                      <button className="btn-ghost" title="View Logs" style={{ padding: '6px', borderRadius: '6px' }} onClick={() => setViewingLogsFor(task.id)}>
                         <Terminal size={16} />
                       </button>
-                      {task.status === 'running' || task.status === 'queued' ? (
-                        <button className="btn-ghost" title="Cancel Task" style={{ padding: '6px', borderRadius: '6px', color: 'var(--warning)' }}>
+                      {task.status === 'running' || task.status === 'queued' || task.status === 'scheduled' ? (
+                        <button className="btn-ghost" title="Cancel Task" style={{ padding: '6px', borderRadius: '6px', color: 'var(--warning)' }} onClick={() => handleCancelTask(task.id)}>
                           <Square size={16} />
                         </button>
                       ) : (task.status === 'failed' || task.status === 'cancelled') ? (
-                        <button className="btn-ghost" title="Retry Task" style={{ padding: '6px', borderRadius: '6px', color: 'var(--primary)' }}>
+                        <button className="btn-ghost" title="Retry Task" style={{ padding: '6px', borderRadius: '6px', color: 'var(--primary)' }} onClick={() => handleRetryTask(task.id)}>
                           <RotateCcw size={16} />
                         </button>
                       ) : null}
@@ -132,6 +187,60 @@ const Tasks = () => {
           </tbody>
         </table>
       </div>
+
+      {viewingLogsFor && (
+        <LogViewer taskId={viewingLogsFor} onClose={() => setViewingLogsFor(null)} />
+      )}
+
+      {showSubmitModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div className="glass-panel animate-fade-in" style={{ width: '400px', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>Submit New Task</h3>
+              <button className="btn-ghost" style={{ padding: '4px' }} onClick={() => setShowSubmitModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmit(onSubmitTask)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Task Name</label>
+                <input {...register('name')} required className="input" placeholder="e.g. Data Processing" style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'white' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Command</label>
+                <input {...register('command')} required className="input" placeholder="e.g. echo 'Hello World'" style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'white', fontFamily: 'monospace' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Priority</label>
+                  <select {...register('priority')} className="input" style={{ width: '100%', padding: '10px', background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'white' }}>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>CPU Cores</label>
+                  <input type="number" {...register('cpu')} defaultValue={1} className="input" style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'white' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Memory (MB)</label>
+                  <input type="number" {...register('memory')} defaultValue={0} className="input" style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'white' }} />
+                </div>
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Submit Task</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
