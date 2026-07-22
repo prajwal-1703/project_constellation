@@ -34,9 +34,9 @@ else
     echo "Node.js $(node -v) is already installed."
 fi
 
-# 2. Install Go (1.22.5)
-GO_VERSION="1.22.5"
-if ! command -v go &> /dev/null || ! go version | grep -q "go1.2"; then
+# 2. Install Go (1.25.0)
+GO_VERSION="1.25.0"
+if ! command -v go &> /dev/null || ! go version | grep -q "go1.25"; then
     echo "Installing Go ${GO_VERSION}..."
     wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
     sudo rm -rf /usr/local/go
