@@ -1,6 +1,6 @@
 module github.com/constellation/controller
 
-go 1.22.0
+go 1.22
 
 require (
 	github.com/canonical/go-dqlite v1.11.0
