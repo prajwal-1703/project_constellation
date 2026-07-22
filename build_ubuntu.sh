@@ -62,6 +62,11 @@ cargo build --release
 cp target/release/constellation-agent ../$DIST_DIR/bin/
 cd ..
 
+# Generate certificates
+echo "Generating cluster certificates..."
+go run gen_certs.go
+cp -r certs/* $DIST_DIR/certs/
+
 # Copy systemd templates and cert generation script
 cp deploy/constellation-controller.service $DIST_DIR/systemd/
 cp deploy/constellation-agent.service $DIST_DIR/systemd/
