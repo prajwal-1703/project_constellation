@@ -66,6 +66,7 @@ cd ..
 cp deploy/constellation-controller.service $DIST_DIR/systemd/
 cp deploy/constellation-agent.service $DIST_DIR/systemd/
 cp deploy/install.sh $DIST_DIR/
+chmod +x $DIST_DIR/install.sh
 
 echo "Creating tarball..."
 cd release
