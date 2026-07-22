@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/constellation
-ExecStart=/opt/constellation/bin/constellation-controller -http :8080 -grpc :9090 -data /var/lib/constellation
+ExecStart=/opt/constellation/bin/constellation-controller -http :8080 -grpc :9090 -data /var/lib/constellation -tls-cert /opt/constellation/certs/server.crt -tls-key /opt/constellation/certs/server.key
 Restart=always
 RestartSec=3
 

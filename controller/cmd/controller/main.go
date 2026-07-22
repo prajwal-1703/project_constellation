@@ -24,6 +24,8 @@ func main() {
 	dataDir := flag.String("data", getDefaultDataDir(), "Data directory path")
 	raftBind := flag.String("raft-bind", "127.0.0.1:9000", "Address to bind Raft node to")
 	raftJoin := flag.String("raft-join", "", "Address of existing Raft node to join")
+	tlsCert := flag.String("tls-cert", "../certs/server.crt", "Path to TLS certificate")
+	tlsKey := flag.String("tls-key", "../certs/server.key", "Path to TLS key")
 	flag.Parse()
 
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
@@ -112,7 +114,7 @@ func main() {
 	log.Printf("Data dir: %s", *dataDir)
 	log.Println("─────────────────────────────────────────────")
 
-	if err := api.StartGRPCServer(*grpcAddr, "../certs/server.crt", "../certs/server.key", store, server.WSHub); err != nil {
+	if err := api.StartGRPCServer(*grpcAddr, *tlsCert, *tlsKey, store, server.WSHub); err != nil {
 		log.Fatalf("gRPC server failed: %v", err)
 	}
 
