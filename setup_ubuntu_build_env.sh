@@ -11,10 +11,10 @@ sudo apt-get update
 echo "Installing C build tools and utilities..."
 sudo apt-get install -y curl wget git build-essential libc6-dev gcc libdqlite-dev
 
-# 1. Install Node.js (18.x)
-if ! command -v node &> /dev/null || ! node -v | grep -q "v18\|v19\|v20\|v21\|v22"; then
-    echo "Installing Node.js 18.x..."
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+# 1. Install Node.js (20.x)
+if ! command -v node &> /dev/null || ! node -v | grep -q "v20\\|v21\\|v22\\|v23"; then
+    echo "Installing Node.js 20.x..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt-get install -y nodejs
 else
     echo "Node.js $(node -v) is already installed."
