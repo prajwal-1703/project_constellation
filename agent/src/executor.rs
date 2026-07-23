@@ -200,3 +200,109 @@ pub async fn cancel_task(pid: u32) -> bool {
     #[cfg(target_os = "windows")]
     true
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ExecutableTask {
+    pub id: String,
+    pub command: String,
+    pub working_dir: String,
+    pub timeout_seconds: u64,
+    pub env_vars: Option<std::collections::HashMap<String, String>>,
+    pub input_file: String,
+    pub output_file: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PendingTasksResponse {
+    pub tasks: Vec<ExecutableTask>,
+}
+
+pub async fn task_polling_loop(
+    state: Arc<RwLock<crate::AgentState>>,
+    controller_url: &str,
+    interval_seconds: u64,
+) {
+    let client = reqwest::Client::new();
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_seconds));
+
+    loop {
+        interval.tick().await;
+
+        let s = state.read().await;
+        if !s.is_registered {
+            continue;
+        }
+
+        let node_id = s.node_id.clone();
+        let jwt_token = s.token.clone();
+        drop(s);
+
+        let url = format!("{}/api/v1/nodes/{}/tasks/pending", controller_url, node_id);
+        match client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", jwt_token))
+            .send()
+            .await
+        {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    if let Ok(data) = resp.json::<PendingTasksResponse>().await {
+                        for task in data.tasks {
+                            info!("Pulled pending task/chunk: {}", task.id);
+                            
+                            // Spawn task execution in background
+                            let state_clone = state.clone();
+                            let c_url = controller_url.to_string();
+                            let token = jwt_token.clone();
+                            let client_clone = client.clone();
+                            
+                            tokio::spawn(async move {
+                                // Increment running tasks
+                                {
+                                    let mut s = state_clone.write().await;
+                                    s.running_tasks += 1;
+                                }
+
+                                // Execute
+                                let wd = if task.working_dir.is_empty() { None } else { Some(task.working_dir.as_str()) };
+                                let result = execute_task(
+                                    &task.id,
+                                    &task.command,
+                                    wd,
+                                    task.env_vars.as_ref(),
+                                    task.timeout_seconds,
+                                ).await;
+
+                                // Decrement running tasks
+                                {
+                                    let mut s = state_clone.write().await;
+                                    s.running_tasks -= 1;
+                                }
+
+                                // Report result
+                                let res_url = format!("{}/api/v1/tasks/{}/result", c_url, task.id);
+                                let payload = serde_json::json!({
+                                    "exit_code": result.exit_code.unwrap_or(-1),
+                                    "logs": result.logs,
+                                    "status": result.status,
+                                });
+
+                                let _ = client_clone
+                                    .post(&res_url)
+                                    .header("Authorization", format!("Bearer {}", token))
+                                    .json(&payload)
+                                    .send()
+                                    .await;
+                                
+                                info!("Reported result for task/chunk: {}", task.id);
+                            });
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Task polling failed: {}", e);
+            }
+        }
+    }
+}

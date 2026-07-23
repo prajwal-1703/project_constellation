@@ -70,6 +70,7 @@ func NewServer(store *state.Store) *Server {
 			r.Put("/nodes/{id}/status", s.HandleUpdateNodeStatus)
 			r.Post("/nodes/{id}/reserve", s.HandleReserveNode)
 			r.Delete("/nodes/{id}/reserve", s.HandleUnreserveNode)
+			r.Get("/nodes/{id}/tasks/pending", s.HandleGetPendingTasks)
 
 			// Tasks
 			r.Post("/tasks", s.HandleSubmitTask)
@@ -77,6 +78,7 @@ func NewServer(store *state.Store) *Server {
 			r.Get("/tasks/{id}", s.HandleGetTask)
 			r.Delete("/tasks/{id}", s.HandleCancelTask)
 			r.Post("/tasks/{id}/retry", s.HandleRetryTask)
+			r.Post("/tasks/{id}/result", s.HandleTaskResult)
 			r.Get("/tasks/{id}/logs", s.HandleTaskLogs)
 			r.Get("/tasks/{id}/logs/ws", s.HandleTaskLogsWS)
 

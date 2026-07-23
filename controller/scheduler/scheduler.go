@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/constellation/controller/api"
+	"github.com/constellation/controller/splitter"
 	"github.com/constellation/controller/state"
 )
 
@@ -13,6 +14,7 @@ import (
 type Scheduler struct {
 	store     *state.Store
 	wsHub     *api.WebSocketHub
+	splitter  *splitter.Splitter
 	queue     *PriorityQueue
 	ticker    *time.Ticker
 	stopCh    chan struct{}
@@ -23,9 +25,10 @@ type Scheduler struct {
 // NewScheduler creates a new scheduler instance.
 func NewScheduler(store *state.Store, wsHub *api.WebSocketHub) *Scheduler {
 	return &Scheduler{
-		store:  store,
-		wsHub:  wsHub,
-		queue:  NewPriorityQueue(),
+		store:    store,
+		wsHub:    wsHub,
+		splitter: splitter.NewSplitter(store, "/tmp/constellation/tasks"),
+		queue:    NewPriorityQueue(),
 		stopCh: make(chan struct{}),
 	}
 }
@@ -83,7 +86,9 @@ func (s *Scheduler) scheduleCycle() {
 		return
 	}
 
-	if len(tasks) == 0 {
+	chunks, _ := s.store.GetQueuedChunks()
+
+	if len(tasks) == 0 && len(chunks) == 0 {
 		return
 	}
 
@@ -102,6 +107,19 @@ func (s *Scheduler) scheduleCycle() {
 	for _, task := range tasks {
 		// Skip split tasks — they go through the splitter
 		if task.Type == "split" && task.SplitStrategy != "" {
+			if task.Status == "submitted" || task.Status == "queued" {
+				log.Printf("scheduler: splitting task %s using strategy %s", task.ID, task.SplitStrategy)
+				newChunks, err := s.splitter.SplitTask(task)
+				if err != nil {
+					log.Printf("scheduler: failed to split task %s: %v", task.ID, err)
+					s.store.UpdateTaskResult(task.ID, 1, err.Error())
+					continue
+				}
+				for _, chunk := range newChunks {
+					s.store.CreateTaskChunk(&chunk)
+				}
+				s.store.UpdateTaskStatus(task.ID, "splitting")
+			}
 			continue
 		}
 
@@ -164,12 +182,7 @@ func (s *Scheduler) scheduleCycle() {
 		log.Printf("scheduler: assigned task %s (%s) to node %s (%s)",
 			task.ID, task.Name, bestNode.ID, bestNode.Hostname)
 
-		// 5. Update task status to running (in real system, agent would confirm)
-		if err := s.store.UpdateTaskStatus(task.ID, "running"); err != nil {
-			log.Printf("scheduler: failed to update task status: %v", err)
-		}
-
-		// 6. Broadcast event
+		// 5. Broadcast event (Agent will pull it as 'scheduled' and start it)
 		s.wsHub.BroadcastEvent("task_scheduled", map[string]interface{}{
 			"task_id":   task.ID,
 			"task_name": task.Name,
@@ -184,6 +197,29 @@ func (s *Scheduler) scheduleCycle() {
 			MemoryUsage:  bestNode.MemoryUsage,
 			DiskUsage:    bestNode.DiskUsage,
 			LoadAvg1:     bestNode.LoadAvg1,
+		})
+	}
+
+	// 4. Schedule queued chunks
+	for _, chunk := range chunks {
+		parentTask, err := s.store.GetTask(chunk.ParentTaskID)
+		if err != nil {
+			continue
+		}
+
+		bestNode := s.findBestNode(parentTask, nodes)
+		if bestNode == nil {
+			continue
+		}
+
+		if err := s.store.UpdateChunkAssignment(chunk.ID, bestNode.ID); err != nil {
+			continue
+		}
+
+		log.Printf("scheduler: assigned chunk %s to node %s", chunk.ID, bestNode.Hostname)
+		s.wsHub.BroadcastEvent("chunk_scheduled", map[string]interface{}{
+			"chunk_id": chunk.ID,
+			"node_id":  bestNode.ID,
 		})
 	}
 }

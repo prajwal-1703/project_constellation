@@ -127,6 +127,18 @@ async fn main() {
         metrics::metrics_loop(args.metrics_interval).await;
     });
 
+    // Task polling loop
+    let state_task = state.clone();
+    let controller_url_task = args.controller.clone();
+    let task_polling_interval = 2; // Poll every 2 seconds
+    let task_handle = tokio::spawn(async move {
+        executor::task_polling_loop(
+            state_task,
+            &controller_url_task,
+            task_polling_interval,
+        ).await;
+    });
+
     info!("Agent is running. Press Ctrl+C to stop.");
 
     // Wait for shutdown signal
@@ -135,6 +147,7 @@ async fn main() {
 
     heartbeat_handle.abort();
     metrics_handle.abort();
+    task_handle.abort();
 
     info!("Agent stopped.");
 }

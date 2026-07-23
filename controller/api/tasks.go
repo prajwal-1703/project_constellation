@@ -313,6 +313,119 @@ func (s *Server) HandleTaskLogsWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ─── Agent Task Execution Endpoints ──────────────────────────────────────────
+
+type ExecutableTask struct {
+	ID             string            `json:"id"`
+	Command        string            `json:"command"`
+	WorkingDir     string            `json:"working_dir"`
+	TimeoutSeconds int               `json:"timeout_seconds"`
+	EnvVars        map[string]string `json:"env_vars"`
+	InputFile      string            `json:"input_file"`
+	OutputFile     string            `json:"output_file"`
+}
+
+func (s *Server) HandleGetPendingTasks(w http.ResponseWriter, r *http.Request) {
+	nodeID := chi.URLParam(r, "id")
+	
+	tasks, err := s.Store.GetPendingTasksForNode(nodeID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to get pending tasks")
+		return
+	}
+
+	chunks, err := s.Store.GetPendingChunksForNode(nodeID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to get pending chunks")
+		return
+	}
+
+	var executables []ExecutableTask
+
+	for _, t := range tasks {
+		executables = append(executables, ExecutableTask{
+			ID:             t.ID,
+			Command:        t.Command,
+			WorkingDir:     t.WorkingDir,
+			TimeoutSeconds: t.TimeoutSeconds,
+			EnvVars:        t.EnvVars,
+			InputFile:      t.InputFile,
+			OutputFile:     "",
+		})
+	}
+
+	for _, c := range chunks {
+		// Need parent task for command
+		parent, err := s.Store.GetTask(c.ParentTaskID)
+		if err != nil {
+			continue
+		}
+		executables = append(executables, ExecutableTask{
+			ID:             c.ID,
+			Command:        parent.Command,
+			WorkingDir:     parent.WorkingDir,
+			TimeoutSeconds: parent.TimeoutSeconds,
+			EnvVars:        parent.EnvVars,
+			InputFile:      c.InputFile,
+			OutputFile:     c.OutputFile,
+		})
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"tasks": executables,
+	})
+}
+
+type TaskResultRequest struct {
+	ExitCode int      `json:"exit_code"`
+	Logs     []string `json:"logs"`
+	Status   string   `json:"status"` // completed, failed
+}
+
+func (s *Server) HandleTaskResult(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "id")
+	
+	var req TaskResultRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Is it a normal task or a chunk?
+	if len(taskID) > 6 && taskID[:6] == "chunk-" || taskID[:7] == "replica" || taskID[:4] == "map-" || taskID[:5] == "pipe-" {
+		// It's a chunk
+		if err := s.Store.UpdateChunkStatus(taskID, req.Status, req.ExitCode); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to update chunk result")
+			return
+		}
+		
+		// Wait, if it's a chunk, we might need to aggregate results later.
+		// For MVP, just update the chunk status.
+		s.WSHub.BroadcastEvent("chunk_completed", map[string]interface{}{
+			"chunk_id": taskID,
+			"status":   req.Status,
+		})
+	} else {
+		// Normal task
+		errorMsg := ""
+		if req.ExitCode != 0 {
+			errorMsg = "Task failed with exit code"
+		}
+		
+		if err := s.Store.UpdateTaskResult(taskID, req.ExitCode, errorMsg); err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to update task result")
+			return
+		}
+
+		s.WSHub.BroadcastEvent("task_completed", map[string]interface{}{
+			"task_id": taskID,
+			"status":  req.Status,
+		})
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"message": "result recorded"})
+}
+
 // ─── User Endpoints ─────────────────────────────────────────────────────────
 
 type CreateUserRequest struct {

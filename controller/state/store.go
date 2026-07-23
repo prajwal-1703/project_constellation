@@ -731,6 +731,69 @@ func (s *Store) GetQueuedTasks() ([]*Task, error) {
 	return tasks, rows.Err()
 }
 
+func (s *Store) GetQueuedChunks() ([]*TaskChunk, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows, err := s.db.Query(
+		`SELECT id, parent_task_id, chunk_index, assigned_node, status,
+			input_file, output_file, exit_code, started_at, completed_at
+		 FROM task_chunks WHERE status = 'queued'`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chunks []*TaskChunk
+	for rows.Next() {
+		var c TaskChunk
+		var startedAt, completedAt sql.NullTime
+		err := rows.Scan(&c.ID, &c.ParentTaskID, &c.ChunkIndex, &c.AssignedNode,
+			&c.Status, &c.InputFile, &c.OutputFile, &c.ExitCode, &startedAt, &completedAt)
+		if err != nil {
+			return nil, err
+		}
+		if startedAt.Valid {
+			c.StartedAt = startedAt.Time
+		}
+		if completedAt.Valid {
+			c.CompletedAt = completedAt.Time
+		}
+		chunks = append(chunks, &c)
+	}
+	return chunks, rows.Err()
+}
+
+func (s *Store) GetPendingTasksForNode(nodeID string) ([]*Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows, err := s.db.Query(
+		`SELECT id, name, status, type, split_strategy, command, runtime,
+			docker_image, cpu_required, memory_required, gpu_required, gpu_memory_required, priority, retry_max,
+			retry_count, timeout_seconds, submitted_by, assigned_node, target_node,
+			exit_code, error_message, created_at, started_at, completed_at,
+			env_vars, working_dir, input_file, output_dir, reduce_command,
+			max_nodes, chunk_size, split_by, is_distributed, world_size, gang_id
+		 FROM tasks WHERE assigned_node = ? AND status = 'scheduled'`, nodeID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []*Task
+	for rows.Next() {
+		t, err := s.scanTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
+
 // ─── Task Chunks ─────────────────────────────────────────────────────────────
 
 func (s *Store) CreateTaskChunk(chunk *TaskChunk) error {
@@ -758,6 +821,40 @@ func (s *Store) getTaskChunks(taskID string) ([]TaskChunk, error) {
 		`SELECT id, parent_task_id, chunk_index, assigned_node, status,
 			input_file, output_file, exit_code, started_at, completed_at
 		 FROM task_chunks WHERE parent_task_id = ? ORDER BY chunk_index`, taskID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var chunks []TaskChunk
+	for rows.Next() {
+		var c TaskChunk
+		var startedAt, completedAt sql.NullTime
+		err := rows.Scan(&c.ID, &c.ParentTaskID, &c.ChunkIndex, &c.AssignedNode,
+			&c.Status, &c.InputFile, &c.OutputFile, &c.ExitCode, &startedAt, &completedAt)
+		if err != nil {
+			return nil, err
+		}
+		if startedAt.Valid {
+			c.StartedAt = startedAt.Time
+		}
+		if completedAt.Valid {
+			c.CompletedAt = completedAt.Time
+		}
+		chunks = append(chunks, c)
+	}
+	return chunks, rows.Err()
+}
+
+func (s *Store) GetPendingChunksForNode(nodeID string) ([]TaskChunk, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows, err := s.db.Query(
+		`SELECT id, parent_task_id, chunk_index, assigned_node, status,
+			input_file, output_file, exit_code, started_at, completed_at
+		 FROM task_chunks WHERE assigned_node = ? AND status = 'scheduled'`, nodeID,
 	)
 	if err != nil {
 		return nil, err
