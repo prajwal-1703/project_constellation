@@ -749,10 +749,14 @@ func (s *Store) GetQueuedChunks() ([]*TaskChunk, error) {
 	for rows.Next() {
 		var c TaskChunk
 		var startedAt, completedAt sql.NullTime
-		err := rows.Scan(&c.ID, &c.ParentTaskID, &c.ChunkIndex, &c.AssignedNode,
+		var assignedNode sql.NullString
+		err := rows.Scan(&c.ID, &c.ParentTaskID, &c.ChunkIndex, &assignedNode,
 			&c.Status, &c.InputFile, &c.OutputFile, &c.ExitCode, &startedAt, &completedAt)
 		if err != nil {
 			return nil, err
+		}
+		if assignedNode.Valid {
+			c.AssignedNode = assignedNode.String
 		}
 		if startedAt.Valid {
 			c.StartedAt = startedAt.Time
@@ -836,10 +840,14 @@ func (s *Store) getTaskChunks(taskID string) ([]TaskChunk, error) {
 	for rows.Next() {
 		var c TaskChunk
 		var startedAt, completedAt sql.NullTime
-		err := rows.Scan(&c.ID, &c.ParentTaskID, &c.ChunkIndex, &c.AssignedNode,
+		var assignedNode sql.NullString
+		err := rows.Scan(&c.ID, &c.ParentTaskID, &c.ChunkIndex, &assignedNode,
 			&c.Status, &c.InputFile, &c.OutputFile, &c.ExitCode, &startedAt, &completedAt)
 		if err != nil {
 			return nil, err
+		}
+		if assignedNode.Valid {
+			c.AssignedNode = assignedNode.String
 		}
 		if startedAt.Valid {
 			c.StartedAt = startedAt.Time
@@ -870,10 +878,14 @@ func (s *Store) GetPendingChunksForNode(nodeID string) ([]TaskChunk, error) {
 	for rows.Next() {
 		var c TaskChunk
 		var startedAt, completedAt sql.NullTime
-		err := rows.Scan(&c.ID, &c.ParentTaskID, &c.ChunkIndex, &c.AssignedNode,
+		var assignedNode sql.NullString
+		err := rows.Scan(&c.ID, &c.ParentTaskID, &c.ChunkIndex, &assignedNode,
 			&c.Status, &c.InputFile, &c.OutputFile, &c.ExitCode, &startedAt, &completedAt)
 		if err != nil {
 			return nil, err
+		}
+		if assignedNode.Valid {
+			c.AssignedNode = assignedNode.String
 		}
 		if startedAt.Valid {
 			c.StartedAt = startedAt.Time
