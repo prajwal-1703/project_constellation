@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = 'http://localhost:8080/api/v1';
-const WS_URL = 'ws://localhost:8080/ws';
+const API_BASE = '/api/v1';
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
 export interface ClusterStatus {
   cluster: { name: string; id: string; };
