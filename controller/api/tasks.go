@@ -315,6 +315,10 @@ func (s *Server) HandleTaskLogsWS(w http.ResponseWriter, r *http.Request) {
 		}
 		msg, _ := json.Marshal(event)
 		conn.WriteMessage(websocket.TextMessage, msg)
+		
+		// Gracefully close
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		time.Sleep(100 * time.Millisecond)
 		return
 	}
 
@@ -345,6 +349,10 @@ func (s *Server) HandleTaskLogsWS(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// Gracefully close at the end
+	conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	time.Sleep(100 * time.Millisecond)
 }
 
 // ─── Agent Task Execution Endpoints ──────────────────────────────────────────
