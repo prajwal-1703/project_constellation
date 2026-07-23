@@ -807,10 +807,15 @@ func (s *Store) CreateTaskChunk(chunk *TaskChunk) error {
 		chunk.Status = "queued"
 	}
 
+	var assignedNode interface{} = chunk.AssignedNode
+	if chunk.AssignedNode == "" {
+		assignedNode = nil
+	}
+
 	_, err := s.db.Exec(
 		`INSERT INTO task_chunks (id, parent_task_id, chunk_index, assigned_node, status, input_file, output_file)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		chunk.ID, chunk.ParentTaskID, chunk.ChunkIndex, chunk.AssignedNode,
+		chunk.ID, chunk.ParentTaskID, chunk.ChunkIndex, assignedNode,
 		chunk.Status, chunk.InputFile, chunk.OutputFile,
 	)
 	return err
