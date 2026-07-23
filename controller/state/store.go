@@ -881,6 +881,24 @@ func (s *Store) GetPendingChunksForNode(nodeID string) ([]TaskChunk, error) {
 	return chunks, rows.Err()
 }
 
+func (s *Store) AreAllChunksCompleted(parentTaskID string) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var total, completed int
+	err := s.db.QueryRow(`SELECT count(*) FROM task_chunks WHERE parent_task_id = ?`, parentTaskID).Scan(&total)
+	if err != nil {
+		return false, err
+	}
+
+	err = s.db.QueryRow(`SELECT count(*) FROM task_chunks WHERE parent_task_id = ? AND status IN ('completed', 'failed')`, parentTaskID).Scan(&completed)
+	if err != nil {
+		return false, err
+	}
+
+	return total > 0 && total == completed, nil
+}
+
 func (s *Store) UpdateChunkStatus(id, status string, exitCode int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

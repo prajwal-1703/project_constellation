@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/constellation/controller/api/middleware"
@@ -287,29 +290,57 @@ func (s *Server) HandleTaskLogsWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Simulate streaming logs for enterprise demonstration
-	logs := []string{
-		"Initializing task execution environment...",
-		"Allocating cgroups (CPU: 2, Mem: 4GB)...",
-		"Pulling required dependencies...",
-		"Starting execution...",
-		"Processing data chunk 1/3...",
-		"Processing data chunk 2/3...",
-		"Processing data chunk 3/3...",
-		"Task completed successfully. Cleaning up resources...",
+	logDir := "/var/lib/constellation/logs"
+	var filesToRead []string
+
+	if _, err := os.Stat(filepath.Join(logDir, id+".log")); err == nil {
+		filesToRead = append(filesToRead, filepath.Join(logDir, id+".log"))
 	}
 
-	for _, line := range logs {
+	entries, _ := os.ReadDir(logDir)
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "chunk-"+id+"-") && strings.HasSuffix(e.Name(), ".log") {
+			filesToRead = append(filesToRead, filepath.Join(logDir, e.Name()))
+		}
+	}
+
+	if len(filesToRead) == 0 {
 		event := WSEvent{
 			Type:      "log",
-			Data:      map[string]string{"task_id": id, "line": line},
+			Data:      map[string]string{"task_id": id, "line": "No logs found or task is still running on agent..."},
 			Timestamp: time.Now().Unix(),
 		}
 		msg, _ := json.Marshal(event)
-		if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-			break
+		conn.WriteMessage(websocket.TextMessage, msg)
+		return
+	}
+
+	for _, file := range filesToRead {
+		content, err := os.ReadFile(file)
+		if err == nil {
+			event := WSEvent{
+				Type:      "log",
+				Data:      map[string]string{"task_id": id, "line": "--- Logs from " + filepath.Base(file) + " ---"},
+				Timestamp: time.Now().Unix(),
+			}
+			msg, _ := json.Marshal(event)
+			conn.WriteMessage(websocket.TextMessage, msg)
+
+			lines := strings.Split(string(content), "\n")
+			for _, line := range lines {
+				if strings.TrimSpace(line) == "" {
+					continue
+				}
+				event := WSEvent{
+					Type:      "log",
+					Data:      map[string]string{"task_id": id, "line": line},
+					Timestamp: time.Now().Unix(),
+				}
+				msg, _ := json.Marshal(event)
+				conn.WriteMessage(websocket.TextMessage, msg)
+				time.Sleep(2 * time.Millisecond) // Prevent buffer overflow
+			}
 		}
-		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -393,6 +424,21 @@ func (s *Server) HandleTaskResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Write logs to disk
+	os.MkdirAll("/var/lib/constellation/logs", 0755)
+	logPath := filepath.Join("/var/lib/constellation/logs", taskID+".log")
+	if len(req.Logs) > 0 {
+		file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err == nil {
+			for _, line := range req.Logs {
+				file.WriteString(line + "\n")
+			}
+			file.Close()
+		} else {
+			log.Printf("Failed to write logs for %s: %v", taskID, err)
+		}
+	}
+
 	// Is it a normal task or a chunk?
 	if len(taskID) > 6 && taskID[:6] == "chunk-" || taskID[:7] == "replica" || taskID[:4] == "map-" || taskID[:5] == "pipe-" {
 		// It's a chunk
@@ -400,13 +446,31 @@ func (s *Server) HandleTaskResult(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusInternalServerError, "failed to update chunk result")
 			return
 		}
-		
-		// Wait, if it's a chunk, we might need to aggregate results later.
-		// For MVP, just update the chunk status.
+
 		s.WSHub.BroadcastEvent("chunk_completed", map[string]interface{}{
 			"chunk_id": taskID,
 			"status":   req.Status,
 		})
+
+		// Aggregate logic: Check if all chunks for this parent task are completed
+		// Extract parent ID by string manipulation
+		// "chunk-task-2f6...-0" -> parent is "task-2f6..."
+		parts := strings.Split(taskID, "-")
+		if len(parts) >= 4 && parts[0] == "chunk" && parts[1] == "task" {
+			// e.g. ["chunk", "task", "2f6...", "0"]
+			parentID := parts[1] + "-" + parts[2]
+			
+			// Check if all chunks completed
+			allDone, _ := s.Store.AreAllChunksCompleted(parentID)
+			if allDone {
+				s.Store.UpdateTaskResult(parentID, 0, "")
+				s.WSHub.BroadcastEvent("task_completed", map[string]interface{}{
+					"task_id": parentID,
+					"status":  "completed",
+				})
+			}
+		}
+
 	} else {
 		// Normal task
 		errorMsg := ""
