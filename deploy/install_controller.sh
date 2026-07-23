@@ -53,7 +53,7 @@ go build -o ../constellation-controller ./cmd/controller
 cd ..
 
 cd cli
-go build -o ../constellation ./cmd/constellation
+go build -o ../constellation .
 cd ..
 
 echo "Generating cluster certificates..."
