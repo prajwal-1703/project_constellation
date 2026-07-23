@@ -103,6 +103,11 @@ func NewServer(store *state.Store) *Server {
 	})
 	r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.Dir("dashboard/dist/assets"))))
 
+	// Catch-all for SPA routing (React/Vue router)
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "dashboard/dist/index.html")
+	})
+
 	s.Router = r
 	return s
 }

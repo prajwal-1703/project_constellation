@@ -85,9 +85,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now constellation-controller
 
 echo "[6/6] Initializing Cluster..."
+echo "Wiping old database state for a fresh cluster..."
+sudo systemctl stop constellation-controller 2>/dev/null || true
+sudo rm -rf /var/lib/constellation/*
+sudo systemctl start constellation-controller
+
 sleep 3 # Wait for controller to start
 
-# Check if already initialized by trying to login or init
+# Initialize a fresh cluster
 INIT_OUTPUT=$(constellation init 2>&1) || true
 
 echo ""
