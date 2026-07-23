@@ -40,6 +40,11 @@ cargo build --release
 cd ..
 
 echo "[4/4] Installing Systemd Services..."
+# Stop service if it is already running to avoid "Text file busy" error
+if systemctl is-active --quiet constellation-agent; then
+    sudo systemctl stop constellation-agent
+fi
+
 sudo mkdir -p /opt/constellation/bin
 sudo cp agent/target/release/constellation-agent /opt/constellation/bin/
 

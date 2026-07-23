@@ -60,6 +60,11 @@ echo "Generating cluster certificates..."
 go run gen_certs.go
 
 echo "[5/6] Installing Systemd Services..."
+# Stop service if it is already running to avoid "Text file busy" error
+if systemctl is-active --quiet constellation-controller; then
+    sudo systemctl stop constellation-controller
+fi
+
 sudo mkdir -p /opt/constellation/bin
 sudo mkdir -p /opt/constellation/certs
 sudo mkdir -p /opt/constellation/dashboard
