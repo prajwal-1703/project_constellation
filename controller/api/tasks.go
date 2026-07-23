@@ -299,7 +299,10 @@ func (s *Server) HandleTaskLogsWS(w http.ResponseWriter, r *http.Request) {
 
 	entries, _ := os.ReadDir(logDir)
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), "chunk-"+id+"-") && strings.HasSuffix(e.Name(), ".log") {
+		if e.Name() == id+".log" {
+			continue
+		}
+		if strings.Contains(e.Name(), id+"-") && strings.HasSuffix(e.Name(), ".log") {
 			filesToRead = append(filesToRead, filepath.Join(logDir, e.Name()))
 		}
 	}
@@ -456,8 +459,8 @@ func (s *Server) HandleTaskResult(w http.ResponseWriter, r *http.Request) {
 		// Extract parent ID by string manipulation
 		// "chunk-task-2f6...-0" -> parent is "task-2f6..."
 		parts := strings.Split(taskID, "-")
-		if len(parts) >= 4 && parts[0] == "chunk" && parts[1] == "task" {
-			// e.g. ["chunk", "task", "2f6...", "0"]
+		if len(parts) >= 4 && parts[1] == "task" {
+			// e.g. ["replica", "task", "2f6...", "0"]
 			parentID := parts[1] + "-" + parts[2]
 			
 			// Check if all chunks completed
