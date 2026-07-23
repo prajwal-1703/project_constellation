@@ -8,7 +8,8 @@ const LogViewer = ({ taskId, onClose }: { taskId: string, onClose: () => void })
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const url = `${protocol}//${host}/api/v1/tasks/${taskId}/logs/ws`;
+    const token = localStorage.getItem('token');
+    const url = `${protocol}//${host}/api/v1/tasks/${taskId}/logs/ws?token=${token}`;
 
     ws.current = new WebSocket(url);
 
