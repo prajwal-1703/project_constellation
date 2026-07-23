@@ -340,7 +340,7 @@ func (s *Server) HandleGetPendingTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var executables []ExecutableTask
+	executables := make([]ExecutableTask, 0)
 
 	for _, t := range tasks {
 		executables = append(executables, ExecutableTask{
@@ -352,6 +352,7 @@ func (s *Server) HandleGetPendingTasks(w http.ResponseWriter, r *http.Request) {
 			InputFile:      t.InputFile,
 			OutputFile:     "",
 		})
+		s.Store.UpdateTaskStatus(t.ID, "running")
 	}
 
 	for _, c := range chunks {
@@ -369,6 +370,7 @@ func (s *Server) HandleGetPendingTasks(w http.ResponseWriter, r *http.Request) {
 			InputFile:      c.InputFile,
 			OutputFile:     c.OutputFile,
 		})
+		s.Store.UpdateChunkStatus(c.ID, "running", 0)
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
