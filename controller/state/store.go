@@ -544,7 +544,7 @@ func (s *Store) CreateTask(task *Task) error {
 			timeout_seconds, submitted_by, assigned_node, target_node, exit_code,
 			error_message, created_at, env_vars, working_dir, input_file, output_dir,
 			reduce_command, max_nodes, chunk_size, split_by, is_distributed, world_size, gang_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		task.ID, task.Name, task.Status, task.Type, task.SplitStrategy,
 		task.Command, task.Runtime, task.DockerImage, task.CPURequired,
 		task.MemoryRequired, task.GPURequired, task.GPUMemoryRequired, task.Priority, task.RetryMax, task.RetryCount,
